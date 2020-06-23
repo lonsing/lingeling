@@ -29,6 +29,8 @@ static LGL *lgl, *clone;
 static int *coi, opt = 3;
 static int cloned;
 
+static CCaDiCaL *cadical = 0;
+
 static Clause *clauses;
 static int nclauses, szclauses;
 
@@ -639,7 +641,8 @@ length (const int *p)
 static void
 cadical_test ()
 {
-  CCaDiCaL *cadical = ccadical_init ();
+  assert (!cadical):
+  cadical = ccadical_init ();
   ccadical_add (cadical, 1);
   ccadical_add (cadical, 0);
   int res = ccadical_solve (cadical);
@@ -657,11 +660,6 @@ cadical_test ()
 int
 main (int argc, char **argv)
 {
-
-  cadical_test ();
-  fprintf (stderr, "Exiting after cadical test\n");
-  exit (0);
-
   int res, i, lit, maxk, val;
   unsigned j, init0, init1, initx;
   const char *iname, *err;
@@ -921,6 +919,8 @@ main (int argc, char **argv)
   del (0, lits, szlits * sizeof *lits);
   resetsighandlers ();
   stats ();
+  if (cadical)
+    ccadical_release (cadical);    
   lglrelease (lgl);
   if (apitrace)
     fflush (apitrace), fclose (apitrace);
