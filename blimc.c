@@ -468,6 +468,7 @@ travcoi (void)
 static void
 newlgl (int setapitrace)
 {
+  assert (!use_cadical);
   const char *apitracename = getenv ("BLIMCLGLAPITRACE");
   lgl = lglminit (0, new, rsz, del);
   if (setapitrace && apitracename)
@@ -488,6 +489,7 @@ newlgl (int setapitrace)
 static void
 extract (void *dummy, int lit)
 {
+  assert (!use_cadical);
   size_t oldbytes, newbytes;
   Clause *c;
   int i;
@@ -589,24 +591,37 @@ shiftcnf (int time)
 	  prev = shift (mainilit (aignext (i)), time - 1);
 	  lit = shift (mainilit (aiglatch (i)), time);
 	  equiv (prev, lit);
-	  lglmelt (lgl, prev);
+          if (!use_cadical)
+            lglmelt (lgl, prev);
 	}
     }
   for (c = clauses; c < clauses + nclauses; c++)
     {
       for (p = c->lits; (lit = *p); p++)
-	lgladd (lgl, shift (lit, time));
-      lgladd (lgl, 0);
+        {
+          if (!use_cadical)
+            lgladd (lgl, shift (lit, time));
+          else
+            ccadical_add (cadical, shift (lit, time));
+        }
+      if (!use_cadical)
+        lgladd (lgl, 0);
+      else
+        ccadical_add (cadical, 0);
     }
   for (i = 0; i < model->num_latches; i++)
     if (ulitincoi (aiglatch (i)))
-      lglfreeze (lgl, shift (mainilit (aignext (i)), time));
+      if (!use_cadical)
+        lglfreeze (lgl, shift (mainilit (aignext (i)), time));
 }
 
 static void
 bad (LGL * whichlgl, int time)
 {
-  lglassume (whichlgl, shift (mainilit (aigbad (0)), time));
+  if (!use_cadical)
+    lglassume (whichlgl, shift (mainilit (aigbad (0)), time));
+  else
+    ccadical_assume (cadical, shift (mainilit (aigbad (0)), time));
 }
 
 static void
@@ -691,6 +706,11 @@ cadical_test ()
 int
 main (int argc, char **argv)
 {
+
+  /* TODO add option: disable COI and check impact w/o using cadical/lingeling. */
+
+  /* TODO: add SAT solver API call wrapper to avoid 'if (!use_cadical)...' all the time. */
+  
   int res, i, lit, maxk, val;
   unsigned j, init0, init1, initx;
   const char *iname, *err;
@@ -852,12 +872,9 @@ main (int argc, char **argv)
     ccadical_simplify (cadical);
 
   msg (1, "simplified");
-
-
-  /// CONTINUE HERE
-
   
-  if (lglfixed (lgl, prepbad (0)) < 0)
+  if ((!use_cadical && lglfixed (lgl, prepbad (0)) < 0) ||
+      (use_cadical && ccadical_fixed (cadical, prepbad (0)) < 0))
     {
       res = 20;
       fprintf (outfile, "0\nb0\n.\n");
@@ -865,31 +882,52 @@ main (int argc, char **argv)
   else
     {
       res = 0;
-      lgltravall (lgl, 0, extract);
-      msg (1, "extracted");
-      if (verbose >= 1)
-	lglstats (lgl);
-      tmp = lgl, lgl = 0;
-      lglrelease (tmp);
-      newlgl (1);
-      lglsetopt (lgl, "flipping", 0);
-      lglsetopt (lgl, "boost", 0);
-      lglsetopt (lgl, "simpdelay", 100);
-      lglsetprefix (lgl, "c [lgl0] ");
+      if (!use_cadical)
+        {
+          lgltravall (lgl, 0, extract);
+          msg (1, "extracted");
+          if (verbose >= 1)
+            lglstats (lgl);
+          tmp = lgl, lgl = 0;
+          lglrelease (tmp);
+          newlgl (1);
+          lglsetopt (lgl, "flipping", 0);
+          lglsetopt (lgl, "boost", 0);
+          lglsetopt (lgl, "simpdelay", 100);
+          lglsetprefix (lgl, "c [lgl0] ");
+        }
+      else if (verbose >= 1)
+        ccadical_print_statistics (cadical);
+      
       init ();
       msg (1, "maxk %d", maxk);
+
+      /* Main BMC loop. */
       for (k = 0; k <= maxk; k++)
-	{
+	{          
 	  msg (1, "bound %d", k);
+          
 	  sprintf (prefix, "c [lgl%d] ", k);
-	  lglsetprefix (lgl, prefix);
+          if (!use_cadical)
+            lglsetprefix (lgl, prefix);
+          
 	  shiftcnf (k);
 	  bad (lgl, k);
+          
 	  if (!noclone)
-	    lglsetopt (lgl, "clim", 1000);
-	  res = lglsat (lgl);
+            {
+              assert (!use_cadical);
+              lglsetopt (lgl, "clim", 1000);
+            }
+
+          if (!use_cadical)
+            res = lglsat (lgl);
+          else
+            res = ccadical_solve (cadical);
+          
 	  if (!res)
 	    {
+              assert (!use_cadical);
 	      assert (!clone);
 	      assert (!noclone);
 	      clone = lglclone (lgl);
@@ -920,16 +958,28 @@ main (int argc, char **argv)
 	      lglrelease (tmp);
 	    }
 	  assert (res);
+
 	  if (res == 10)
 	    break;
+          
 	  assert (res == 20);
 	  printf ("u%d\n", k);
 	  fflush (stdout);
+          
 	  if (!model->num_latches)
 	    break;
+          
 	  if (k < maxk && !((k + 1) & k))
-	    (void) lglsimp (lgl, 0);
+            {
+              if (!use_cadical)
+                (void) lglsimp (lgl, 0);
+              else
+                ccadical_simplify (cadical);
+            }
 	}
+      
+      /* End of main BMC loop. */
+
       if (res == 10)
 	{
 	  fprintf (outfile, "1\nb0\n");
@@ -940,7 +990,10 @@ main (int argc, char **argv)
 		  if (ulitincoi (aiglatch (i)))
 		    {
 		      lit = shift (mainilit (aiglatch (i)), 0);
-		      val = lglderef (lgl, lit);
+                      if (!use_cadical)
+                        val = lglderef (lgl, lit);
+                      else
+                        val = ccadical_val (cadical, lit);
 		    }
 		  else
 		    val = 0;
@@ -960,7 +1013,10 @@ main (int argc, char **argv)
 		      if (ulitincoi (aiginput (j)))
 			{
 			  lit = shift (mainilit (aiginput (j)), i);
-			  val = lglderef (lgl, lit);
+                          if (!use_cadical)
+                            val = lglderef (lgl, lit);
+                          else
+                            val = ccadical_val (cadical, lit);
 			}
 		      else
 			val = 0;
@@ -983,21 +1039,33 @@ main (int argc, char **argv)
 	fprintf (outfile, "2\nb0\n.\n");
       del (0, litmap, (model->maxvar + 2) * sizeof *litmap);
     }
+  
   fflush (outfile);
+
   del (0, coi, (model->maxvar + 1) * sizeof *coi);
+
   aiger_reset (model);
+
   for (i = 0; i < nclauses; i++)
     del (0, clauses[i].lits,
 	 (length (clauses[i].lits) + 1) * sizeof *clauses[i].lits);
+
   del (0, clauses, szclauses * sizeof *clauses);
   del (0, lits, szlits * sizeof *lits);
+
   resetsighandlers ();
+
   stats ();
-  if (cadical)
-    ccadical_release (cadical);    
-  lglrelease (lgl);
+
+  if (use_cadical)
+    ccadical_release (cadical);
+  else
+    lglrelease (lgl);
+
   if (apitrace)
     fflush (apitrace), fclose (apitrace);
+
   msg (1, "exit %d", res);
+
   return res;
 }
