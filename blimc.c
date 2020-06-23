@@ -4,6 +4,7 @@
 
 #include "lglib.h"
 #include "aiger.h"
+#include "ccadical.h"
 
 #include <assert.h>
 #include <ctype.h>
