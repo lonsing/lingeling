@@ -29,6 +29,7 @@ static LGL *lgl, *clone;
 static int *coi, opt = 3;
 static int cloned;
 
+static int use_cadical = 0;
 static CCaDiCaL *cadical = 0;
 
 static Clause *clauses;
@@ -273,25 +274,52 @@ prepright (unsigned idx)
 static void
 unit (int ilit)
 {
-  lgladd (lgl, ilit);
-  lgladd (lgl, 0);
+  if (!use_cadical)
+    {
+      lgladd (lgl, ilit);
+      lgladd (lgl, 0);
+    }
+  else
+    {
+      ccadical_add (cadical, ilit);
+      ccadical_add (cadical, 0);
+    }
 }
 
 static void
 binary (int a, int b)
 {
-  lgladd (lgl, a);
-  lgladd (lgl, b);
-  lgladd (lgl, 0);
+  if (!use_cadical)
+    {
+      lgladd (lgl, a);
+      lgladd (lgl, b);
+      lgladd (lgl, 0);
+    }
+  else
+    {
+      ccadical_add (cadical, a);
+      ccadical_add (cadical, b);
+      ccadical_add (cadical, 0);
+    }
 }
 
 static void
 ternary (int a, int b, int c)
 {
-  lgladd (lgl, a);
-  lgladd (lgl, b);
-  lgladd (lgl, c);
-  lgladd (lgl, 0);
+  if (!use_cadical)
+    {
+      lgladd (lgl, a);
+      lgladd (lgl, b);
+      lgladd (lgl, c);
+      lgladd (lgl, 0);
+    }
+  else
+    {
+      ccadical_add (cadical, a);
+      ccadical_add (cadical, b);
+      ccadical_add (cadical, c);
+      ccadical_add (cadical, 0);
+    }
 }
 
 static int
@@ -307,6 +335,7 @@ ulitincoi (unsigned ulit)
 static void
 prepfreeze (void)
 {
+  assert (!use_cadical);
   unsigned i;
   msg (2, "freeze");
   for (i = 0; i < model->num_inputs; i++)
@@ -344,12 +373,14 @@ logic (void)
   if (ulitincoi (0))
     unit (-1);
   for (i = 0; i < model->num_ands; i++)
-    if (ulitincoi (model->ands[i].lhs))
-      and (preplhs (i), prepleft (i), prepright (i));
+    {
+      if (ulitincoi (model->ands[i].lhs))
+        and (preplhs (i), prepleft (i), prepright (i));
+    }
 }
 
 static const char *usage =
-  "usage: blimc [-h][-v][-x][-n][-p][-O[0123]][--no-clone][<maxk>][<aiger>]\n";
+  "usage: blimc [-h][-v][-x][-n][-p][-O[0123]][--no-clone][--use-cadical][<maxk>][<aiger>]\n";
 
 static int
 isnumstr (const char *str)
@@ -641,7 +672,7 @@ length (const int *p)
 static void
 cadical_test ()
 {
-  assert (!cadical):
+  assert (!cadical);
   cadical = ccadical_init ();
   ccadical_add (cadical, 1);
   ccadical_add (cadical, 0);
@@ -670,9 +701,11 @@ main (int argc, char **argv)
 #endif
   LGL *tmp;
   char vch;
+
   outfile = stdout, msgfile = errfile = stderr;
   iname = 0;
   maxk = 0;
+
   for (i = 1; i < argc; i++)
     {
       if (!strcmp (argv[i], "-h"))
@@ -700,6 +733,15 @@ main (int argc, char **argv)
 	opt = 3;
       else if (!strcmp (argv[i], "--no-clone"))
 	noclone = 1;
+      else if (!strcmp (argv[i], "--use-cadical"))
+        {
+          /* Implies '--no-clone' because not sure whether cadical's
+             copy function has the same semantics as lingeling's clone
+             function */
+          use_cadical = 1;
+          noclone = 1;
+          fprintf (stderr, "Note: using CaDiCaL, which implies '--no-clone'.\n");
+        }
       else if (argv[i][0] == '-')
 	die ("invalid command line option '%s'", argv[i]);
       else if (isnumstr (argv[i]))
@@ -709,17 +751,24 @@ main (int argc, char **argv)
       else
 	iname = argv[i];
     }
+
   if (verbose)
     lglbnr ("BLIMC Bounded Lingeling Model Checker", "c [blimc] ", msgfile);
+
   setsighandlers ();
+
   msg (1, "reading %s", iname ? iname : "<stdin>");
+
   model = aiger_init ();
+
   if (iname)
     err = aiger_open_and_read_from_file (model, iname);
   else
     err = aiger_read_from_file (model, stdin);
+
   if (err)
     die ("parse error in '%s' at %s", iname ? iname : "<stdin>", err);
+
   msg (1, "MILOA %u %u %u %u %u",
        model->maxvar,
        model->num_inputs,
@@ -764,6 +813,7 @@ main (int argc, char **argv)
       if (rst == aiglatch (j))
 	initx++;
     }
+
   if (model->num_latches)
     {
       msg (1, "%u latches initialized to 0", init0);
@@ -772,17 +822,41 @@ main (int argc, char **argv)
     }
   else
     msg (1, "no latches, so purely combinational");
+
   coibytes = (model->maxvar + 1) * sizeof *coi;
   coi = new (0, coibytes);
   memset (coi, 0, coibytes);
   travcoi ();
-  newlgl (0);
-  lglsetprefix (lgl, "c [lglopt] ");
+
+  if (!use_cadical)
+    {
+      newlgl (0);
+      lglsetprefix (lgl, "c [lglopt] ");
+    }
+  else
+    {
+      assert (!cadical);
+      cadical = ccadical_init ();
+    }
+  
   logic ();
-  prepfreeze ();
+
+  if (!use_cadical)
+    prepfreeze ();
+
   msg (1, "encoded");
-  (void) lglsimp (lgl, opt);
+
+  if (!use_cadical)
+    (void) lglsimp (lgl, opt);
+  else
+    ccadical_simplify (cadical);
+
   msg (1, "simplified");
+
+
+  /// CONTINUE HERE
+
+  
   if (lglfixed (lgl, prepbad (0)) < 0)
     {
       res = 20;

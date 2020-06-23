@@ -1,4 +1,4 @@
-FLAGS=-W -Wall
+FLAGS=-W -Wall -g3 
 #FLAGS=-W -Wall -O3 -DNDEBUG
 
 DEPSDIR=./deps
