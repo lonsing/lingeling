@@ -5,4 +5,4 @@ DEPSDIR=./deps
 
 all:
 	gcc ${FLAGS} -I${DEPSDIR}/aiger/ -I${DEPSDIR}/cadical/src/ -c -o blimc.o blimc.c
-	gcc ${FLAGS} -o blimc blimc.o -L. -L${DEPSDIR}/cadical/build/ ${DEPSDIR}/aiger/aiger.o -llgl -lm -lcadical
+	gcc ${FLAGS} -o blimc blimc.o -L. -L${DEPSDIR}/cadical/build/ -lcadical ${DEPSDIR}/aiger/aiger.o -llgl -lm -lstdc++

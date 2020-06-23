@@ -466,7 +466,33 @@ static int length (const int * p) {
   return q - p;
 }
 
+
+/* ---- CADICAL TEST ------ */
+
+static void
+cadical_test ()
+{
+  CCaDiCaL * cadical = ccadical_init ();
+  ccadical_add (cadical, 1);
+  ccadical_add (cadical, 0);
+  int res = ccadical_solve (cadical);
+  assert (res == 10);
+  ccadical_add (cadical, -1);
+  ccadical_add (cadical, 0);
+  res = ccadical_solve (cadical);
+  assert (res == 20);
+  ccadical_release (cadical);
+}
+
+
+/* ---- END: CADICAL TEST ------ */
+
 int main (int argc, char ** argv) {
+
+  cadical_test();
+  fprintf (stderr, "Exiting after cadical test\n");
+  exit (0);
+  
   int res, i, lit, maxk, val;
   unsigned j, init0, init1, initx;
   const char * iname, * err;
