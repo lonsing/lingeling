@@ -13,8 +13,9 @@ cd ./deps
 
 wget http://fmv.jku.at/picosat/picosat-${PICOSATVERSION}.tar.gz
 tar -xvzf picosat-${PICOSATVERSION}.tar.gz
+rm picosat-${PICOSATVERSION}.tar.gz
 mv picosat-${PICOSATVERSION} picosat
 cd picosat
 ./configure
 make
-rm picosat-${PICOSATVERSION}.tar.gz
+
