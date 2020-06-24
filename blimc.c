@@ -65,7 +65,7 @@ msg (int level, const char *fmt, ...)
   va_list ap;
   if (verbose < level)
     return;
-  fprintf (msgfile, "c [blimc] %.2f ", lglprocesstime ());
+  fprintf (msgfile, "c [blimc] %.2f ", !use_cadical ? lglprocesstime () : 0);
   va_start (ap, fmt);
   vfprintf (msgfile, fmt, ap);
   va_end (ap);
@@ -88,10 +88,15 @@ stats (void)
 {
   if (verbose)
     {
-      if (clone)
-	lglstats (clone);
-      if (lgl)
-	lglstats (lgl);
+      if (use_cadical)
+        ccadical_print_statistics (cadical);
+      else
+        {
+          if (clone)
+            lglstats (clone);
+          if (lgl)
+            lglstats (lgl);
+        }
     }
   msg (1, "reached k = %d", k);
   msg (1, "cloned %d solvers", cloned);
@@ -681,28 +686,6 @@ length (const int *p)
   return q - p;
 }
 
-
-/* ---- CADICAL TEST ------ */
-
-static void
-cadical_test ()
-{
-  assert (!cadical);
-  cadical = ccadical_init ();
-  ccadical_add (cadical, 1);
-  ccadical_add (cadical, 0);
-  int res = ccadical_solve (cadical);
-  assert (res == 10);
-  ccadical_add (cadical, -1);
-  ccadical_add (cadical, 0);
-  res = ccadical_solve (cadical);
-  assert (res == 20);
-  ccadical_release (cadical);
-}
-
-
-/* ---- END: CADICAL TEST ------ */
-
 int
 main (int argc, char **argv)
 {
@@ -773,8 +756,12 @@ main (int argc, char **argv)
     }
 
   if (verbose)
-    lglbnr ("BLIMC Bounded Lingeling Model Checker", "c [blimc] ", msgfile);
-
+    {
+      if (!use_cadical)
+        lglbnr ("BLIMC Bounded Lingeling Model Checker", "c [blimc] ", msgfile);
+      else
+        msg (1, "BLIMC Bounded Lingeling Model Checker", msgfile);
+    }
   setsighandlers ();
 
   msg (1, "reading %s", iname ? iname : "<stdin>");
