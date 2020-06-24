@@ -29,8 +29,14 @@ static LGL *lgl, *clone;
 static int *coi, opt = 3;
 static int cloned;
 
-static int use_cadical = 0;
+/* It seems cadical C API does not allow to extract clauses. Hence we
+   use the flag 'cadical_extracting_clauses' to indicate whether we map
+   literals in clauses that are added to cadical. Mapping of literals is
+   only necessary once before main BMC loop (see 'extract' function). */
+static int use_cadical = 0, cadical_extracting_clauses = 0;
 static CCaDiCaL *cadical = 0;
+static void extract (void *, int);
+
 
 static Clause *clauses;
 static int nclauses, szclauses;
@@ -287,7 +293,12 @@ unit (int ilit)
   else
     {
       ccadical_add (cadical, ilit);
+      if (cadical_extracting_clauses)
+        extract ((void *) 0, ilit);
+      
       ccadical_add (cadical, 0);
+      if (cadical_extracting_clauses)
+        extract ((void *) 0, 0);
     }
 }
 
@@ -303,8 +314,16 @@ binary (int a, int b)
   else
     {
       ccadical_add (cadical, a);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, a);
+      
       ccadical_add (cadical, b);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, b);
+      
       ccadical_add (cadical, 0);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, 0);      
     }
 }
 
@@ -321,9 +340,20 @@ ternary (int a, int b, int c)
   else
     {
       ccadical_add (cadical, a);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, a);
+
       ccadical_add (cadical, b);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, b);
+
       ccadical_add (cadical, c);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, c);
+
       ccadical_add (cadical, 0);
+      if (cadical_extracting_clauses)
+        extract ((void*) 0, 0);
     }
 }
 
@@ -494,7 +524,7 @@ newlgl (int setapitrace)
 static void
 extract (void *dummy, int lit)
 {
-  assert (!use_cadical);
+  assert (!use_cadical || cadical_extracting_clauses);
   size_t oldbytes, newbytes;
   Clause *c;
   int i;
@@ -583,6 +613,7 @@ equiv (int a, int b)
 static void
 shiftcnf (int time)
 {
+  assert (!cadical_extracting_clauses);
   int *p, lit, prev;
   unsigned i;
   Clause *c;
@@ -844,6 +875,7 @@ main (int argc, char **argv)
     {
       assert (!cadical);
       cadical = ccadical_init ();
+      cadical_extracting_clauses = 1;
     }
   
   logic ();
@@ -883,8 +915,12 @@ main (int argc, char **argv)
           lglsetopt (lgl, "simpdelay", 100);
           lglsetprefix (lgl, "c [lgl0] ");
         }
-      else if (verbose >= 1)
-        ccadical_print_statistics (cadical);
+      else
+        {
+          cadical_extracting_clauses = 0;
+          if (verbose >= 1)
+            ccadical_print_statistics (cadical);
+        }
       
       init ();
       msg (1, "maxk %d", maxk);
