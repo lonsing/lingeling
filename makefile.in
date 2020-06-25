@@ -34,8 +34,8 @@ plingeling: plingeling.o liblgl.a makefile $(LDEPS)
 	$(CC) $(CFLAGS) -pthread -o $@ plingeling.o -L. -llgl $(LIBS)
 treengeling: treengeling.o liblgl.a makefile $(LDEPS)
 	$(CC) $(CFLAGS) -pthread -o $@ treengeling.o -L. -llgl $(LIBS)
-blimc: blimc.o liblgl.a makefile $(AIGER)/aiger.o $(LDEPS)
-	$(CC) $(CFLAGS) -o $@ blimc.o -L. $(AIGER)/aiger.o -llgl $(LIBS)
+#blimc: blimc.o liblgl.a makefile $(AIGER)/aiger.o $(LDEPS)
+#	$(CC) $(CFLAGS) -o $@ blimc.o -L. $(AIGER)/aiger.o -llgl $(LIBS)
 ilingeling: ilingeling.o liblgl.a makefile $(LDEPS)
 	$(CC) $(CFLAGS) -pthread -o $@ ilingeling.o -L. -llgl $(LIBS)
 lglmbt: lglmbt.o liblgl.a $(LDEPS)
@@ -53,8 +53,8 @@ treengeling.o: treengeling.c lglib.h makefile
 	$(CC) $(CFLAGS) -c treengeling.c
 ilingeling.o: ilingeling.c lglib.h makefile
 	$(CC) $(CFLAGS) -c ilingeling.c
-blimc.o: blimc.c lglib.h $(AIGER)/aiger.h makefile
-	$(CC) $(CFLAGS) -I$(AIGER) -c -o $@ blimc.c
+#blimc.o: blimc.c lglib.h $(AIGER)/aiger.h makefile
+#	$(CC) $(CFLAGS) -I$(AIGER) -c -o $@ blimc.c
 lglmbt.o: lglmbt.c lglib.h makefile
 	$(CC) $(CFLAGS) -c lglmbt.c
 lgluntrace.o: lgluntrace.c lglib.h makefile
