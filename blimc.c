@@ -284,9 +284,7 @@ prepright (unsigned idx)
 
 static void
 unit (int ilit)
-{
-  fprintf (stderr, "DEBUG: add unit clause '%d 0'\n", ilit);
-  
+{  
   if (!use_cadical)
     {
       lgladd (lgl, ilit);
@@ -306,9 +304,7 @@ unit (int ilit)
 
 static void
 binary (int a, int b)
-{
-  fprintf (stderr, "DEBUG: add binary clause '%d %d 0'\n", a, b);
-  
+{  
   if (!use_cadical)
     {
       lgladd (lgl, a);
@@ -333,9 +329,7 @@ binary (int a, int b)
 
 static void
 ternary (int a, int b, int c)
-{
-  fprintf (stderr, "DEBUG: add ternary clause '%d %d %d 0'\n", a, b, c);
-  
+{  
   if (!use_cadical)
     {
       lgladd (lgl, a);
@@ -401,7 +395,6 @@ prepfreeze (void)
 static void
 and (int lhs, int rhs0, int rhs1)
 {
-  fprintf (stderr, "DEBUG: and \n");
   binary (-lhs, rhs0);
   binary (-lhs, rhs1);
   ternary (-rhs0, -rhs1, lhs);
@@ -410,15 +403,6 @@ and (int lhs, int rhs0, int rhs1)
 static void
 logic (void)
 {
-
-    if (!use_cadical)
-    {
-      fprintf (stderr, "DEBUG before logic lgl print all:\n");
-      lglprintall (lgl, stderr);
-    }
-
-  
-  fprintf (stderr, "DEBUG: logic \n");
   unsigned i;
   msg (2, "logic");
   if (ulitincoi (0))
@@ -428,14 +412,6 @@ logic (void)
       if (ulitincoi (model->ands[i].lhs))
         and (preplhs (i), prepleft (i), prepright (i));
     }
-  fprintf (stderr, "DEBUG: done logic \n");
-
-    if (!use_cadical)
-    {
-      fprintf (stderr, "DEBUG after logic lgl print all:\n");
-      lglprintall (lgl, stderr);
-    }
-
 }
 
 static const char *usage =
@@ -630,7 +606,6 @@ shift (int ilit, int time)
 static void
 equiv (int a, int b)
 {
-  fprintf (stderr, "DEBUG: adding equiv \n");
   binary (-a, b);
   binary (a, -b);
 }
@@ -638,7 +613,6 @@ equiv (int a, int b)
 static void
 shiftcnf (int time)
 {
-  fprintf (stderr, "DEBUG: shiftcnf time %d\n", time);
   assert (!cadical_extracting_clauses);
   int *p, lit, prev;
   unsigned i;
@@ -659,11 +633,8 @@ shiftcnf (int time)
     }
   for (c = clauses; c < clauses + nclauses; c++)
     {
-      fprintf (stderr, "DEBUG shiftcnf: add clause: ");
       for (p = c->lits; (lit = *p); p++)
         {
-          //DEBUG
-          fprintf (stderr, "%d ", shift (lit, time));
           if (!use_cadical)
             lgladd (lgl, shift (lit, time));
           else
@@ -673,21 +644,16 @@ shiftcnf (int time)
         lgladd (lgl, 0);
       else
         ccadical_add (cadical, 0);
-      //DEBUG
-      fprintf (stderr, "0\n");
     }
   for (i = 0; i < model->num_latches; i++)
     if (ulitincoi (aiglatch (i)))
       if (!use_cadical)
         lglfreeze (lgl, shift (mainilit (aignext (i)), time));
-
-  fprintf (stderr, "DEBUG: shiftcnf done\n");
 }
 
 static void
 bad (LGL * whichlgl, int time)
 {
-  fprintf (stderr, "DEBUG: assume bad %d\n", shift (mainilit (aigbad (0)), time));
   if (!use_cadical)
     lglassume (whichlgl, shift (mainilit (aigbad (0)), time));
   else
@@ -697,7 +663,6 @@ bad (LGL * whichlgl, int time)
 static void
 init (void)
 {
-  fprintf (stderr, "DEBUG: init \n");
   size_t bytes;
   unsigned i;
   int lit;
@@ -730,7 +695,6 @@ init (void)
     if (ulitincoi (aigbad (i)))
       assert (litmap[abs (prepbad (i))]);
 #endif
-  fprintf (stderr, "DEBUG: init latches pass \n");
   for (i = 0; i < model->num_latches; i++)
     {
       if (!ulitincoi (aiglatch (i)))
@@ -741,20 +705,6 @@ init (void)
 	unit (-mainilit (aiglatch (i)));
       if (aiger_true == aigreset (i))
 	unit (mainilit (aiglatch (i)));
-    }
-  fprintf (stderr, "DEBUG: init done \n");
-
-  {
-    //DEBUG
-    int debuglit;
-    for (debuglit = 1; debuglit <= 8; debuglit++)
-      fprintf(stderr, "DEBUG after init---lit %d fixed? %d \n", debuglit, use_cadical ? ccadical_fixed (cadical, debuglit) : lglfixed (lgl, debuglit));
-  }
-
-  if (!use_cadical)
-    {
-      fprintf (stderr, "DEBUG after init lgl print all:\n");
-      lglprintall (lgl, stderr);
     }
 }
 
@@ -935,41 +885,12 @@ main (int argc, char **argv)
 
   msg (1, "encoded");
 
-  {
-    //DEBUG
-    int debuglit;
-    for (debuglit = 1; debuglit <= 8; debuglit++)
-      fprintf(stderr, "DEBUG before initial simp---lit %d fixed? %d \n", debuglit, use_cadical ? ccadical_fixed (cadical, debuglit) : lglfixed (lgl, debuglit));
-  }
-
-
-  if (!use_cadical)
-    {
-      fprintf (stderr, "DEBUG before simp lgl print all:\n");
-      lglprintall (lgl, stderr);
-    }
-  
 #if 1
   if (!use_cadical)
     (void) lglsimp (lgl, opt);
   else
     ccadical_simplify (cadical);
 #endif
-
-  if (!use_cadical)
-    {
-      fprintf (stderr, "DEBUG after simp lgl print all:\n");
-      lglprintall (lgl, stderr);
-    }
-
-  
-  {
-    //DEBUG
-    int debuglit;
-    for (debuglit = 1; debuglit <= 8; debuglit++)
-      fprintf(stderr, "DEBUG after initial simp---lit %d fixed? %d \n", debuglit, use_cadical ? ccadical_fixed (cadical, debuglit) : lglfixed (lgl, debuglit));
-  }
-
   
   msg (1, "simplified");
   
@@ -1006,29 +927,6 @@ main (int argc, char **argv)
           ccadical_release (cadical);
           cadical = ccadical_init();
         }
-
-      //TODO DEBUG: check the CNF in the solver and in the clause list!
-      if (!use_cadical)
-        {
-          fprintf (stderr, "DEBUG after extract before init lgl print all:\n");
-          lglprintall (lgl, stderr);
-        }
-
-      //DEBUG
-                {
-            int lit;
-            fprintf (stderr, "DEBUG orig clauses before init:\n");
-            Clause *c;
-            for (c = clauses; c < clauses + nclauses; c++)
-              {
-                int *p;
-                for (p = c->lits; (lit = *p); p++)
-                  fprintf (stderr, "%d ", lit);     
-                fprintf (stderr, "0\n");     
-              }
-            fprintf (stderr, "DEBUG end orig clauses\n");
-          }
-
       
       init ();
       msg (1, "maxk %d", maxk);
@@ -1050,43 +948,11 @@ main (int argc, char **argv)
               assert (!use_cadical);
               lglsetopt (lgl, "clim", 1000);
             }
-
-          
-          if (!use_cadical)
-            {
-              fprintf (stderr, "DEBUG before sat-call bound %d lgl print all:\n", k);
-              lglprintall (lgl, stderr);
-            }
-
-          
-          //DEBUG
-          int debuglit;
-          for (debuglit = 1; debuglit <= 8; debuglit++)
-            fprintf(stderr, "DEBUG before sat-call bound %d---lit %d fixed? %d \n", k, debuglit, use_cadical ? ccadical_fixed (cadical, debuglit) : lglfixed (lgl, debuglit));
-
-          {
-            int lit;
-            fprintf (stderr, "DEBUG orig clauses before sat-call:\n");
-            Clause *c;
-            for (c = clauses; c < clauses + nclauses; c++)
-              {
-                int *p;
-                for (p = c->lits; (lit = *p); p++)
-                  fprintf (stderr, "%d ", lit);     
-                fprintf (stderr, "0\n");     
-              }
-            fprintf (stderr, "DEBUG end orig clauses\n");
-          }
           
           if (!use_cadical)
             res = lglsat (lgl);
           else
             res = ccadical_solve (cadical);
-
-          //DEBUG
-          for (debuglit = 1; debuglit <= 8; debuglit++)
-            fprintf(stderr, "DEBUG after sat-call bound %d---lit %d fixed? %d \n", k, debuglit, use_cadical ? ccadical_fixed (cadical, debuglit) : lglfixed (lgl, debuglit));
-
           
 	  if (!res)
 	    {
@@ -1125,12 +991,14 @@ main (int argc, char **argv)
 	  if (res == 10)
 	    break;
 
+#if 0
           //DEBUG: assumptions must be reset with second call of solver
           if (use_cadical)
             assert (ccadical_solve (cadical) == 10);
           else
             assert (lglsat (lgl) == 10);
-              
+#endif
+          
 	  assert (res == 20);
 	  printf ("u%d\n", k);
 	  fflush (stdout);
