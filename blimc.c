@@ -24,7 +24,7 @@ static aiger *model;
 static unsigned num_bad;
 static aiger_symbol *badsyms;
 static FILE *outfile, *msgfile, *errfile, *apitrace;
-static int verbose, xstim, plain, nowitness, noclone;
+static int verbose, xstim, plain, nowitness, noclone, nocoi = 0;
 static LGL *lgl, *clone;
 static int *coi, opt = 3;
 static int cloned;
@@ -194,7 +194,7 @@ prepilit (unsigned ulit)
 {
   int res;
   assert (aiger_lit2var (ulit) <= model->maxvar);
-  assert (coi[aiger_lit2var (ulit)]);
+  assert (nocoi || coi[aiger_lit2var (ulit)]);
   assert (ulit <= 2 * model->maxvar + 1);
   res = (ulit >> 1) + 1;
   if (ulit & 1)
@@ -360,6 +360,8 @@ ternary (int a, int b, int c)
 static int
 ulitincoi (unsigned ulit)
 {
+  if (nocoi)
+    return 1;
   unsigned idx;
   assert (ulit <= 2 * model->maxvar + 1);
   idx = aiger_lit2var (ulit);
@@ -445,6 +447,7 @@ coimsg (const char *name, unsigned remaining, unsigned all)
 static void
 travcoi (void)
 {
+  assert (!nocoi);
   unsigned next, top, size, latches, inputs, ands, constants;
   unsigned lit, *stack, idx, stripped;
   aiger_symbol *s;
@@ -767,6 +770,8 @@ main (int argc, char **argv)
 	opt = 3;
       else if (!strcmp (argv[i], "--no-clone"))
 	noclone = 1;
+      else if (!strcmp (argv[i], "--no-coi"))
+	nocoi = 1;
       else if (!strcmp (argv[i], "--use-cadical"))
         {
           /* Implies '--no-clone' because not sure whether cadical's
@@ -864,7 +869,17 @@ main (int argc, char **argv)
   coibytes = (model->maxvar + 1) * sizeof *coi;
   coi = new (0, coibytes);
   memset (coi, 0, coibytes);
-  travcoi ();
+  if (!nocoi)
+    travcoi ();
+  else
+    {
+      fprintf (stderr, "Note: skipping COI analysis.\n");
+      coimsg ("literals", model->maxvar, model->maxvar);
+      coimsg ("inputs", model->num_inputs, model->num_inputs);
+      coimsg ("latches", model->num_latches, model->num_latches);
+      coimsg ("constants", 1, 1);
+      coimsg ("ands", model->num_ands, model->num_ands);
+    }
 
   if (!use_cadical)
     {
