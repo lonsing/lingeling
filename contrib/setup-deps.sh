@@ -3,7 +3,7 @@
 ./setup-aiger.sh
 ./setup-cadical.sh
 
-echo "Compiling Lingeling with AIGER support"
+echo "Compiling Lingeling"
 cd ..
-./configure.sh --aiger=./deps/aiger/
+./configure.sh
 make
